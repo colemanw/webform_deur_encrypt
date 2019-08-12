@@ -1,0 +1,145 @@
+<?php
+/**
+ * Created using PhpStorm.
+ * User: Semper IT
+ * Date: 19-08-11
+ */
+
+function webform_deur_encrypt_webform_component_presave(&$component) {
+  if (!empty($component['encryption'])) {
+    $component['extra'] = array_merge($component['extra'], $component['encryption']);
+    // KG - Let's not unset this b/c webform_encrypt module requires it as well and comes after us
+    // unset($component['encryption']);
+
+    if ($component['extra']['encrypt']) {
+      // Encrypt all CiviCRM custom field data for this form_key
+      webform_deur_encrypt_encryption($component['nid'], $component['cid'], $component['extra'], $component['form_key']);
+    }
+    else {
+      // Decrypt all CiviCRM custom field data for this form_key
+      webform_deur_encrypt_decryption($component['nid'], $component['cid'], $component['extra'], $component['form_key']);
+    }
+
+  }
+}
+
+function webform_deur_encrypt_encryption($nid = NULL, $cid = NULL, $extra = array(), $form_key = NULL) {
+  // Encrypt all CiviCRM custom field data for this form_key
+
+  $tablecolumn = webform_deur_encrypt_extract($form_key);
+  if ($tablecolumn == '') {
+    return;
+  } else {
+    $table_name = $tablecolumn[0];
+    $column_name = $tablecolumn[1];
+  }
+
+  require_once 'CRM/Utils/Crypt.php';
+
+  $sql = "SELECT $column_name, entity_id FROM $table_name";
+  $dao = CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
+  while ( $dao->fetch( ) ) {
+    $entityId = $dao->entity_id;
+    $field = $dao->$column_name;
+    if ($field != '') {
+      // KG - not sure how to check if field is not already encrypted - let's use length for now
+      if (strlen($field) < 13) {
+        $encField = CRM_Utils_Crypt::encrypt($field);
+        $sql = "UPDATE $table_name SET $column_name = '$encField' WHERE entity_id=$entityId";
+        CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
+      }
+    }
+  }
+}
+
+function webform_deur_encrypt_decryption($nid = NULL, $cid = NULL, $extra = array(), $form_key = NULL) {
+  // Decrypt all CiviCRM custom field data for this form_key
+
+  $tablecolumn = webform_deur_encrypt_extract($form_key);
+  if ($tablecolumn == '') {
+    return;
+  } else {
+    $table_name = $tablecolumn[0];
+    $column_name = $tablecolumn[1];
+  }
+
+  require_once 'CRM/Utils/Crypt.php';
+
+  $sql = "SELECT $column_name, entity_id FROM $table_name";
+  $dao = CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
+  while ( $dao->fetch( ) ) {
+    $entityId = $dao->entity_id;
+    $field = $dao->$column_name;
+    if ($field != '') {
+      // KG - not sure how to check if field is not already decrypted - let's use length for now
+      if (strlen($field) > 12) {
+        $encField = CRM_Utils_Crypt::decrypt($field);
+        $sql = "UPDATE $table_name SET $column_name = '$encField' WHERE entity_id=$entityId";
+        CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
+      }
+    }
+  }
+}
+
+function webform_deur_encrypt_civicrm_custom( $op, $groupID, $entityID, &$params ) {
+  if ( $op != 'create' && $op != 'edit' ) {
+    return;
+  }
+
+  require_once 'CRM/Utils/Crypt.php';
+
+  // KG - short cut for now. Not that difficult to rewrite as the params contain the table_name and column_name
+  if ($params[0]['table_name'] == 'civicrm_value_thealex_7' && $params[0]['column_name'] == 'alexid_13') {
+    if ($params[0]['value'] < 13) {
+      $encField = CRM_Utils_Crypt::encrypt($params[0]['value']);
+      $sql = "UPDATE civicrm_value_thealex_7 SET alexid_13 = '$encField' WHERE entity_id=$entityID";
+      CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
+    }
+  }
+}
+
+function webform_deur_encrypt_form_alter( &$form, &$form_state, $form_id ){
+  // KG - completely HARDCODED for now. Would need to dig in to a) find the form_key that has encryption enabled and b) then find it within fieldsets/layout boxes; need a flattened form.
+  $form['submitted']['civicrm_1_contact_1_cg7_fieldset']['civicrm_1_contact_1_cg7_custom_13']['#default_value'] = "KAGE2000";
+}
+
+function webform_deur_encrypt_extract($form_key) {
+  // Extract $table_name and $column_name from $form_key - example: civicrm_1_contact_1_cg7_custom_13
+  $form_key_pieces = explode("_", $form_key);
+  if (isset($form_key_pieces[5])) {
+    if ($form_key_pieces[5] != 'custom') {
+      return array();
+    }
+    else {
+      $groupID = substr($form_key_pieces[4], 2);
+      $fieldID = $form_key_pieces[6];
+    }
+  }
+  else {
+    return array();
+  }
+
+  $result = civicrm_api3('CustomGroup', 'get', [
+    'return' => ["table_name"],
+    'id' => $groupID,
+  ]);
+  if ($result['is_error'] != 0) {
+    return;
+  }
+  else {
+    $table_name = $result['values'][$groupID]['table_name'];
+  }
+
+  $result = civicrm_api3('CustomField', 'get', [
+    'return' => ["column_name"],
+    'id' => $fieldID,
+  ]);
+  if ($result['is_error'] != 0) {
+    return;
+  }
+  else {
+    $column_name = $result['values'][$fieldID]['column_name'];
+  }
+
+  return array($table_name, $column_name);
+}

@@ -1,0 +1,3 @@
+name = Webform Deur Encrypt
+description = 'Encrypt CiviCRM custom fields collected via Webform CiviCRM.'
+core = 7.x
