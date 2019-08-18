@@ -50,10 +50,10 @@ function webform_deur_encrypt_encryption($nid = NULL, $cid = NULL, $extra = arra
 
   foreach ($result['values'] as $customField) {
     if ($customField[$customId]) {
-      // KG - not sure how to check if field is not already encrypted - let's use length for now
-      if (strlen($customField[$customId]) < 13) {
-        // KG - replace with drupal encrypt module
-        $field_value = CRM_Utils_Crypt::encrypt($customField[$customId]);
+      // KG - check if field is not already encrypted
+      if (substr($customField[$customId], 0, 7) != 'encrypt') {
+        // KG - Todo: replace with drupal encrypt module
+        $field_value = 'encrypt-' . CRM_Utils_Crypt::encrypt($customField[$customId]);
         $result = civicrm_api3( 'CustomValue', 'create', [
           'entity_id' => $customField['contact_id'],
           'custom_' . $fieldID => $field_value,
@@ -91,10 +91,10 @@ function webform_deur_encrypt_decryption($nid = NULL, $cid = NULL, $extra = arra
 
   foreach ($result['values'] as $customField) {
     if ($customField[$customId]) {
-      // KG - not sure how to check if field is not already encrypted - let's use length for now
-      if (strlen($customField[$customId]) > 13) {
-        // KG - replace with drupal decrypt module
-        $field_value = CRM_Utils_Crypt::decrypt($customField[$customId]);
+      // KG - check if field is indeed encrypted
+      if (substr($customField[$customId], 0, 7) == 'encrypt') {
+         // KG - Todo: replace with drupal encrypt module
+        $field_value = CRM_Utils_Crypt::decrypt(substr($customField[$customId], 8));
         $result = civicrm_api3('CustomValue', 'create', [
           'entity_id' => $customField['contact_id'],
           'custom_' . $fieldID => $field_value,
@@ -118,8 +118,9 @@ function webform_deur_encrypt_civicrm_custom( $op, $groupID, $entityID, &$params
 
   // KG - short cut for now. Not that difficult to rewrite as the params contain the table_name and column_name
   if ($params[0]['table_name'] == 'civicrm_value_thealex_7' && $params[0]['column_name'] == 'alexid_13') {
-    if ($params[0]['value'] < 13) {
-      $encField = CRM_Utils_Crypt::encrypt($params[0]['value']);
+    if (substr($params[0]['value'], 0, 7) != 'encrypt') {
+      // KG - Todo: replace with drupal encrypt module
+      $encField = 'encrypt-' . CRM_Utils_Crypt::encrypt($params[0]['value']);
       $sql = "UPDATE civicrm_value_thealex_7 SET alexid_13 = '$encField' WHERE entity_id=$entityID";
       CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
     }
@@ -149,8 +150,8 @@ function webform_deur_encrypt_form_alter( &$form, &$form_state, $form_id ){
       if ($component['extra']['encrypt']) {
         // KG - Decrypt it before showing it on the form
         require_once 'CRM/Utils/Crypt.php';
-        if (strlen($form['submitted']['civicrm_1_contact_1_cg7_fieldset']['civicrm_1_contact_1_cg7_custom_13']['#default_value']) > 13) {
-          $field_value = CRM_Utils_Crypt::decrypt($form['submitted']['civicrm_1_contact_1_cg7_fieldset']['civicrm_1_contact_1_cg7_custom_13']['#default_value']);
+        if (substr($form['submitted']['civicrm_1_contact_1_cg7_fieldset']['civicrm_1_contact_1_cg7_custom_13']['#default_value'], 0, 7) == 'encrypt') {
+          $field_value = CRM_Utils_Crypt::decrypt(substr($form['submitted']['civicrm_1_contact_1_cg7_fieldset']['civicrm_1_contact_1_cg7_custom_13']['#default_value'], 8));
           $form['submitted']['civicrm_1_contact_1_cg7_fieldset']['civicrm_1_contact_1_cg7_custom_13']['#default_value'] = $field_value;
         }
       }
