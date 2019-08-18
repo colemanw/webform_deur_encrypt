@@ -27,26 +27,37 @@ function webform_deur_encrypt_encryption($nid = NULL, $cid = NULL, $extra = arra
   // Encrypt all CiviCRM custom field data for this form_key
 
   $tablecolumn = webform_deur_encrypt_extract($form_key);
-  if ($tablecolumn == '') {
-    return;
-  } else {
+  if (!empty($tablecolumn)) {
     $table_name = $tablecolumn[0];
     $column_name = $tablecolumn[1];
+    $fieldID = $tablecolumn[2];
+  } else {
+    return;
   }
 
   require_once 'CRM/Utils/Crypt.php';
 
-  $sql = "SELECT $column_name, entity_id FROM $table_name";
-  $dao = CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
-  while ( $dao->fetch( ) ) {
-    $entityId = $dao->entity_id;
-    $field = $dao->$column_name;
-    if ($field != '') {
+  $customId = 'custom_' . $fieldID;
+
+  // KG - a bit inefficient: pulling up all Contacts; not sure why it returns more than just $customId
+  $result = civicrm_api3('Contact', 'get', [
+    'sequential' => 1,
+    'return' => $customId,
+    'options' => array(
+      'limit' => 0,
+    ),
+  ]);
+
+  foreach ($result['values'] as $customField) {
+    if ($customField[$customId]) {
       // KG - not sure how to check if field is not already encrypted - let's use length for now
-      if (strlen($field) < 13) {
-        $encField = CRM_Utils_Crypt::encrypt($field);
-        $sql = "UPDATE $table_name SET $column_name = '$encField' WHERE entity_id=$entityId";
-        CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
+      if (strlen($customField[$customId]) < 13) {
+        // KG - replace with drupal encrypt module
+        $encField = CRM_Utils_Crypt::encrypt($customField[$customId]);
+        $result = civicrm_api3( 'CustomValue', 'create', [
+          'entity_id' => $customField['contact_id'],
+          'custom_' . $fieldID => $encField,
+        ]);
       }
     }
   }
@@ -56,26 +67,38 @@ function webform_deur_encrypt_decryption($nid = NULL, $cid = NULL, $extra = arra
   // Decrypt all CiviCRM custom field data for this form_key
 
   $tablecolumn = webform_deur_encrypt_extract($form_key);
-  if ($tablecolumn == '') {
-    return;
-  } else {
+  if (!empty($tablecolumn)) {
     $table_name = $tablecolumn[0];
     $column_name = $tablecolumn[1];
+    $fieldID = $tablecolumn[2];
+  }
+  else {
+    return;
   }
 
   require_once 'CRM/Utils/Crypt.php';
 
-  $sql = "SELECT $column_name, entity_id FROM $table_name";
-  $dao = CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
-  while ( $dao->fetch( ) ) {
-    $entityId = $dao->entity_id;
-    $field = $dao->$column_name;
-    if ($field != '') {
-      // KG - not sure how to check if field is not already decrypted - let's use length for now
-      if (strlen($field) > 12) {
-        $encField = CRM_Utils_Crypt::decrypt($field);
-        $sql = "UPDATE $table_name SET $column_name = '$encField' WHERE entity_id=$entityId";
-        CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
+  $customId = 'custom_' . $fieldID;
+
+  // KG - a bit inefficient: pulling up all Contacts; not sure why it returns more than just $customId
+  $result = civicrm_api3('Contact', 'get', [
+    'sequential' => 1,
+    'return' => $customId,
+    'options' => array(
+      'limit' => 0,
+    ),
+  ]);
+
+  foreach ($result['values'] as $customField) {
+    if ($customField[$customId]) {
+      // KG - not sure how to check if field is not already encrypted - let's use length for now
+      if (strlen($customField[$customId]) > 13) {
+        // KG - replace with drupal decrypt module
+        $nonencField = CRM_Utils_Crypt::decrypt($customField[$customId]);
+        $result = civicrm_api3('CustomValue', 'create', [
+          'entity_id' => $customField['contact_id'],
+          'custom_' . $fieldID => $nonencField,
+        ]);
       }
     }
   }
@@ -106,40 +129,28 @@ function webform_deur_encrypt_form_alter( &$form, &$form_state, $form_id ){
 function webform_deur_encrypt_extract($form_key) {
   // Extract $table_name and $column_name from $form_key - example: civicrm_1_contact_1_cg7_custom_13
   $form_key_pieces = explode("_", $form_key);
-  if (isset($form_key_pieces[5])) {
-    if ($form_key_pieces[5] != 'custom') {
-      return array();
-    }
-    else {
-      $groupID = substr($form_key_pieces[4], 2);
-      $fieldID = $form_key_pieces[6];
-    }
-  }
-  else {
-    return array();
-  }
+  $groupID = substr($form_key_pieces[4], 2);
+  $fieldID = $form_key_pieces[6];
 
   $result = civicrm_api3('CustomGroup', 'get', [
     'return' => ["table_name"],
     'id' => $groupID,
   ]);
-  if ($result['is_error'] != 0) {
-    return;
-  }
-  else {
+  if ($result['is_error'] == 0) {
     $table_name = $result['values'][$groupID]['table_name'];
+  } else {
+    return array();
   }
 
   $result = civicrm_api3('CustomField', 'get', [
     'return' => ["column_name"],
     'id' => $fieldID,
   ]);
-  if ($result['is_error'] != 0) {
-    return;
-  }
-  else {
+  if ($result['is_error'] == 0) {
     $column_name = $result['values'][$fieldID]['column_name'];
+  } else {
+    return array();
   }
 
-  return array($table_name, $column_name);
+  return array($table_name, $column_name, $fieldID);
 }
