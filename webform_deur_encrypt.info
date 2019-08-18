@@ -1,3 +1,8 @@
 name = Webform Deur Encrypt
 description = 'Encrypt CiviCRM custom fields collected via Webform CiviCRM.'
+dependencies[] = webform
+dependencies[] = civicrm
+dependencies[] = webform_encrypt
+dependencies[] = webform_civicrm
 core = 7.x
+version = "7.x-1.0-alpha"
