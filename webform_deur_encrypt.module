@@ -5,16 +5,20 @@
  * Date: 19-08-11
  */
 
-function webform_deur_encrypt_webform_component_presave(&$component) {
-  if (!empty($component['encryption'])) {
-    $component['extra'] = array_merge($component['extra'], $component['encryption']);
-    if ($component['extra']['encrypt']) {
-      // Encrypt all CiviCRM custom field data for this form_key
-      webform_deur_encrypt_encryption($component['nid'], $component['cid'], $component['extra'], $component['form_key']);
-    }
-    else {
-      // Decrypt all CiviCRM custom field data for this form_key
-      webform_deur_encrypt_decryption($component['nid'], $component['cid'], $component['extra'], $component['form_key']);
+function webform_deur_encrypt_webform_component_presave($component) {
+  // This module is only looking for CiviCRM custom fields
+  // Example: $form_key - example: civicrm_1_contact_1_cg1_custom_1
+  if (substr($component['form_key'], 0, 7) == 'civicrm' && preg_match('/_custom/', $component['form_key'], $matches)) {
+    if (!empty($component['encryption'])) {
+      $component['extra'] = array_merge($component['extra'], $component['encryption']);
+      if ($component['extra']['encrypt']) {
+        // Encrypt all CiviCRM custom field data for this form_key
+        webform_deur_encrypt_encryption($component['nid'], $component['cid'], $component['extra'], $component['form_key']);
+      }
+      else {
+        // Decrypt all CiviCRM custom field data for this form_key
+        webform_deur_encrypt_decryption($component['nid'], $component['cid'], $component['extra'], $component['form_key']);
+      }
     }
   }
 }
