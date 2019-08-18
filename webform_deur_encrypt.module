@@ -1,16 +1,13 @@
 <?php
 /**
  * Created using PhpStorm.
- * User: Semper IT
+ * User: Semper IT / KarinG
  * Date: 19-08-11
  */
 
 function webform_deur_encrypt_webform_component_presave(&$component) {
   if (!empty($component['encryption'])) {
     $component['extra'] = array_merge($component['extra'], $component['encryption']);
-    // KG - Let's not unset this b/c webform_encrypt module requires it as well and comes after us
-    // unset($component['encryption']);
-
     if ($component['extra']['encrypt']) {
       // Encrypt all CiviCRM custom field data for this form_key
       webform_deur_encrypt_encryption($component['nid'], $component['cid'], $component['extra'], $component['form_key']);
@@ -19,7 +16,6 @@ function webform_deur_encrypt_webform_component_presave(&$component) {
       // Decrypt all CiviCRM custom field data for this form_key
       webform_deur_encrypt_decryption($component['nid'], $component['cid'], $component['extra'], $component['form_key']);
     }
-
   }
 }
 
