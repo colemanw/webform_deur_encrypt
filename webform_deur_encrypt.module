@@ -105,6 +105,11 @@ function webform_deur_encrypt_decryption($nid = NULL, $cid = NULL, $extra = arra
 }
 
 function webform_deur_encrypt_civicrm_custom( $op, $groupID, $entityID, &$params ) {
+
+  // KG - for now
+  $test = 1;
+  // return;
+
   if ( $op != 'create' && $op != 'edit' ) {
     return;
   }
@@ -122,8 +127,35 @@ function webform_deur_encrypt_civicrm_custom( $op, $groupID, $entityID, &$params
 }
 
 function webform_deur_encrypt_form_alter( &$form, &$form_state, $form_id ){
-  // KG - completely HARDCODED for now. Would need to dig in to a) find the form_key that has encryption enabled and b) then find it within fieldsets/layout boxes; need a flattened form.
-  $form['submitted']['civicrm_1_contact_1_cg7_fieldset']['civicrm_1_contact_1_cg7_custom_13']['#default_value'] = "KAGE2000";
+
+  if ($form['#node']->type != 'webform') {
+    return;
+  }
+
+  if ($form_id == 'webform_component_edit_form' | $form_id == 'webform_components_form') {
+    return;
+  }
+
+  // KG - We only want decrypt CiviCRM custom values on initial form load
+  if ($form_state['input']['op'] == 'Submit') {
+    return;
+  }
+
+  // KG - Check all webform components
+  foreach ($form['#node']->webform['components'] as $component) {
+    // KG - Check to see if we we have CiviCRM custom fields
+    if (substr($component['form_key'], 0, 7) == 'civicrm' && preg_match('/_custom/', $component['form_key'], $matches)) {
+      // KG - Check to see if the CiviCRM custom field is configured to be Encrypted
+      if ($component['extra']['encrypt']) {
+        // KG - Decrypt it before showing it on the form
+        require_once 'CRM/Utils/Crypt.php';
+        if (strlen($form['submitted']['civicrm_1_contact_1_cg7_fieldset']['civicrm_1_contact_1_cg7_custom_13']['#default_value']) > 13) {
+          $field_value = CRM_Utils_Crypt::decrypt($form['submitted']['civicrm_1_contact_1_cg7_fieldset']['civicrm_1_contact_1_cg7_custom_13']['#default_value']);
+          $form['submitted']['civicrm_1_contact_1_cg7_fieldset']['civicrm_1_contact_1_cg7_custom_13']['#default_value'] = $field_value;
+        }
+      }
+    }
+  }
 }
 
 function webform_deur_encrypt_extract($form_key) {
