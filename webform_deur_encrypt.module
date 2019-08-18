@@ -39,7 +39,7 @@ function webform_deur_encrypt_encryption($nid = NULL, $cid = NULL, $extra = arra
 
   $customId = 'custom_' . $fieldID;
 
-  // KG - a bit inefficient: pulling up all Contacts; not sure why it returns more than just $customId
+  // KG - a bit inefficient: pulling up all Contacts
   $result = civicrm_api3('Contact', 'get', [
     'sequential' => 1,
     'return' => $customId,
@@ -53,10 +53,10 @@ function webform_deur_encrypt_encryption($nid = NULL, $cid = NULL, $extra = arra
       // KG - not sure how to check if field is not already encrypted - let's use length for now
       if (strlen($customField[$customId]) < 13) {
         // KG - replace with drupal encrypt module
-        $encField = CRM_Utils_Crypt::encrypt($customField[$customId]);
+        $field_value = CRM_Utils_Crypt::encrypt($customField[$customId]);
         $result = civicrm_api3( 'CustomValue', 'create', [
           'entity_id' => $customField['contact_id'],
-          'custom_' . $fieldID => $encField,
+          'custom_' . $fieldID => $field_value,
         ]);
       }
     }
@@ -80,7 +80,7 @@ function webform_deur_encrypt_decryption($nid = NULL, $cid = NULL, $extra = arra
 
   $customId = 'custom_' . $fieldID;
 
-  // KG - a bit inefficient: pulling up all Contacts; not sure why it returns more than just $customId
+  // KG - a bit inefficient: pulling up all Contacts
   $result = civicrm_api3('Contact', 'get', [
     'sequential' => 1,
     'return' => $customId,
@@ -94,10 +94,10 @@ function webform_deur_encrypt_decryption($nid = NULL, $cid = NULL, $extra = arra
       // KG - not sure how to check if field is not already encrypted - let's use length for now
       if (strlen($customField[$customId]) > 13) {
         // KG - replace with drupal decrypt module
-        $nonencField = CRM_Utils_Crypt::decrypt($customField[$customId]);
+        $field_value = CRM_Utils_Crypt::decrypt($customField[$customId]);
         $result = civicrm_api3('CustomValue', 'create', [
           'entity_id' => $customField['contact_id'],
-          'custom_' . $fieldID => $nonencField,
+          'custom_' . $fieldID => $field_value,
         ]);
       }
     }
