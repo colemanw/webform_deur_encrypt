@@ -106,7 +106,7 @@ function webform_deur_encrypt_decryption($nid = NULL, $cid = NULL, $extra = arra
 
 function webform_deur_encrypt_civicrm_custom( $op, $groupID, $entityID, &$params ) {
 
-  // KG - for now
+  // KG - Todo: for now - ALWAYS encrypts - regardless of webform component setting;
   $test = 1;
   // return;
 
@@ -148,11 +148,31 @@ function webform_deur_encrypt_form_alter( &$form, &$form_state, $form_id ){
     if (substr($component['form_key'], 0, 7) == 'civicrm' && preg_match('/_custom/', $component['form_key'], $matches)) {
       // KG - Check to see if the CiviCRM custom field is configured to be Encrypted
       if ($component['extra']['encrypt']) {
-        // KG - Decrypt it before showing it on the form
+        // KG - Find it and decrypt it before showing it on the form
+
         require_once 'CRM/Utils/Crypt.php';
-        if (substr($form['submitted']['civicrm_1_contact_1_cg7_fieldset']['civicrm_1_contact_1_cg7_custom_13']['#default_value'], 0, 7) == 'encrypt') {
-          $field_value = CRM_Utils_Crypt::decrypt(substr($form['submitted']['civicrm_1_contact_1_cg7_fieldset']['civicrm_1_contact_1_cg7_custom_13']['#default_value'], 8));
-          $form['submitted']['civicrm_1_contact_1_cg7_fieldset']['civicrm_1_contact_1_cg7_custom_13']['#default_value'] = $field_value;
+
+        foreach($form['submitted'] as $key_sub => $sub) {
+          if ($key_sub == $component['form_key']) {
+            // KG - only one level down
+            $form['submitted'][$component['form_key']]['#default_value'];
+            if (substr($form['submitted'][$component['form_key']]['#default_value'], 0, 7) == 'encrypt') {
+              $field_value = CRM_Utils_Crypt::decrypt(substr($form['submitted'][$component['form_key']]['#default_value'], 8));
+              $form['submitted'][$component['form_key']]['#default_value'] = $field_value;
+            }
+          }
+          if (is_array($sub)) {
+            foreach($sub as $key_subsub => $subsub) {
+              if ($key_subsub == $component['form_key']) {
+                // KG - two levels down
+                $form['submitted'][$key_sub][$component['form_key']]['#default_value'];
+                if (substr($form['submitted'][$key_sub][$component['form_key']]['#default_value'], 0, 7) == 'encrypt') {
+                  $field_value = CRM_Utils_Crypt::decrypt(substr($form['submitted'][$key_sub][$component['form_key']]['#default_value'], 8));
+                  $form['submitted'][$key_sub][$component['form_key']]['#default_value'] = $field_value;
+                }
+              }
+            }
+          }
         }
       }
     }
