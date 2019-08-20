@@ -6,17 +6,16 @@
  */
 
 function webform_deur_encrypt_webform_component_presave($component) {
-  // This module is only looking for CiviCRM custom fields
-  // Example: $form_key - example: civicrm_1_contact_1_cg1_custom_1
+  // This module is only looking for CiviCRM custom fields - example: civicrm_1_contact_1_cg7_custom_13
   if (substr($component['form_key'], 0, 7) == 'civicrm' && preg_match('/_custom/', $component['form_key'], $matches)) {
     if (!empty($component['encryption'])) {
       $component['extra'] = array_merge($component['extra'], $component['encryption']);
       if ($component['extra']['encrypt']) {
-        // Encrypt all CiviCRM custom field data for this form_key
+        // Encrypt ALL CiviCRM custom field data for this form_key
         webform_deur_encrypt_encryption($component['nid'], $component['cid'], $component['extra'], $component['form_key']);
       }
       else {
-        // Decrypt all CiviCRM custom field data for this form_key
+        // Decrypt ALL CiviCRM custom field data for this form_key
         webform_deur_encrypt_decryption($component['nid'], $component['cid'], $component['extra'], $component['form_key']);
       }
     }
@@ -24,53 +23,42 @@ function webform_deur_encrypt_webform_component_presave($component) {
 }
 
 function webform_deur_encrypt_encryption($nid = NULL, $cid = NULL, $extra = array(), $form_key = NULL) {
-  // Encrypt all CiviCRM custom field data for this form_key
+  // Encrypt ALL CiviCRM custom field data for this form_key
 
   $tablecolumn = webform_deur_encrypt_extract($form_key);
   if (!empty($tablecolumn)) {
     $table_name = $tablecolumn[0];
     $column_name = $tablecolumn[1];
-    $fieldID = $tablecolumn[2];
   } else {
     return;
   }
 
   require_once 'CRM/Utils/Crypt.php';
 
-  $customId = 'custom_' . $fieldID;
-
-  // KG - a bit inefficient: pulling up all Contacts
-  $result = civicrm_api3('Contact', 'get', [
-    'sequential' => 1,
-    'return' => $customId,
-    'options' => array(
-      'limit' => 0,
-    ),
-  ]);
-
-  foreach ($result['values'] as $customField) {
-    if ($customField[$customId]) {
-      // KG - check if field is not already encrypted
-      if (substr($customField[$customId], 0, 7) != 'encrypt') {
+  $sql = "SELECT $column_name, entity_id FROM $table_name";
+  $dao = CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
+  while ( $dao->fetch( ) ) {
+    $entityId = $dao->entity_id;
+    $field = $dao->$column_name;
+    if ($field != '') {
+      // Check if field is not already encrypted
+      if (substr($field, 0, 7) != 'encrypt') {
         // KG - Todo: replace with drupal encrypt module
-        $field_value = 'encrypt-' . CRM_Utils_Crypt::encrypt($customField[$customId]);
-        $result = civicrm_api3( 'CustomValue', 'create', [
-          'entity_id' => $customField['contact_id'],
-          'custom_' . $fieldID => $field_value,
-        ]);
+        $field_value = 'encrypt-' . CRM_Utils_Crypt::encrypt($field);
+        $sql = "UPDATE $table_name SET $column_name = '$field_value' WHERE entity_id=$entityId";
+        CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
       }
     }
   }
 }
 
 function webform_deur_encrypt_decryption($nid = NULL, $cid = NULL, $extra = array(), $form_key = NULL) {
-  // Decrypt all CiviCRM custom field data for this form_key
+  // Decrypt ALL CiviCRM custom field data for this form_key
 
   $tablecolumn = webform_deur_encrypt_extract($form_key);
   if (!empty($tablecolumn)) {
     $table_name = $tablecolumn[0];
     $column_name = $tablecolumn[1];
-    $fieldID = $tablecolumn[2];
   }
   else {
     return;
@@ -78,27 +66,18 @@ function webform_deur_encrypt_decryption($nid = NULL, $cid = NULL, $extra = arra
 
   require_once 'CRM/Utils/Crypt.php';
 
-  $customId = 'custom_' . $fieldID;
-
-  // KG - a bit inefficient: pulling up all Contacts
-  $result = civicrm_api3('Contact', 'get', [
-    'sequential' => 1,
-    'return' => $customId,
-    'options' => array(
-      'limit' => 0,
-    ),
-  ]);
-
-  foreach ($result['values'] as $customField) {
-    if ($customField[$customId]) {
-      // KG - check if field is indeed encrypted
-      if (substr($customField[$customId], 0, 7) == 'encrypt') {
-         // KG - Todo: replace with drupal encrypt module
-        $field_value = CRM_Utils_Crypt::decrypt(substr($customField[$customId], 8));
-        $result = civicrm_api3('CustomValue', 'create', [
-          'entity_id' => $customField['contact_id'],
-          'custom_' . $fieldID => $field_value,
-        ]);
+  $sql = "SELECT $column_name, entity_id FROM $table_name";
+  $dao = CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
+  while ( $dao->fetch( ) ) {
+    $entityId = $dao->entity_id;
+    $field = $dao->$column_name;
+    if ($field != '') {
+      // Check if field is indeed encrypted
+      if (substr($field, 0, 7) == 'encrypt') {
+        // KG - Todo: replace with drupal encrypt module
+        $field_value = CRM_Utils_Crypt::decrypt(substr($field, 8));
+        $sql = "UPDATE $table_name SET $column_name = '$field_value' WHERE entity_id=$entityId";
+        CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
       }
     }
   }
@@ -106,56 +85,75 @@ function webform_deur_encrypt_decryption($nid = NULL, $cid = NULL, $extra = arra
 
 function webform_deur_encrypt_civicrm_custom( $op, $groupID, $entityID, &$params ) {
 
-  // KG - Todo: for now - ALWAYS encrypts - regardless of webform component setting;
-  $test = 1;
-  // return;
-
-  if ( $op != 'create' && $op != 'edit' ) {
+  if ( $op != 'create' && $op != 'edit' && substr($_POST['form_id'], 0, 7) != 'webform') {
     return;
   }
 
-  require_once 'CRM/Utils/Crypt.php';
+  $table_name = $params[0]['table_name'];
+  $column_name = $params[0]['column_name'];
+  $explode_form_id = explode("_", $_POST['form_id']);
+  $nid =  $explode_form_id[3];
 
-  // KG - short cut for now. Not that difficult to rewrite as the params contain the table_name and column_name
-  if ($params[0]['table_name'] == 'civicrm_value_thealex_7' && $params[0]['column_name'] == 'alexid_13') {
-    if (substr($params[0]['value'], 0, 7) != 'encrypt') {
-      // KG - Todo: replace with drupal encrypt module
-      $encField = 'encrypt-' . CRM_Utils_Crypt::encrypt($params[0]['value']);
-      $sql = "UPDATE civicrm_value_thealex_7 SET alexid_13 = '$encField' WHERE entity_id=$entityID";
-      CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
+  $node = node_load($nid);
+  $node->webform['components'];
+
+  // Check all webform components
+  foreach ($node->webform['components'] as $component) {
+    // Check to see if we we have CiviCRM custom fields
+    if (substr($component['form_key'], 0, 7) == 'civicrm' && preg_match('/_custom/', $component['form_key'], $matches)) {
+      // Check to see if the CiviCRM custom field is configured to be Encrypted
+      if ($component['extra']['encrypt']) {
+
+        require_once 'CRM/Utils/Crypt.php';
+
+        $field = $params[0]['value'];
+        $entityId = $params[0]['entity_id'];
+        // KG - check if field is not already encrypted
+        if (substr($field, 0, 7) != 'encrypt') {
+          // KG - Todo: replace with drupal encrypt module
+          $field_value = 'encrypt-' . CRM_Utils_Crypt::encrypt($field);
+          $sql = "UPDATE $table_name SET $column_name = '$field_value' WHERE entity_id=$entityId";
+          CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
+        }
+
+      }
     }
   }
 }
 
 function webform_deur_encrypt_form_alter( &$form, &$form_state, $form_id ){
 
-  if ($form['#node']->type != 'webform') {
-    return;
+  if (isset($form['#node'])) {
+    if ($form['#node']->type != 'webform') {
+      return;
+    }
   }
 
   if ($form_id == 'webform_component_edit_form' | $form_id == 'webform_components_form') {
     return;
   }
 
-  // KG - We only want decrypt CiviCRM custom values on initial form load
-  if ($form_state['input']['op'] == 'Submit') {
-    return;
+  // We only want decrypt CiviCRM custom values on initial webform form load
+  if (isset($form_state['input']['op'])) {
+    if ($form_state['input']['op'] == 'Submit') {
+      return;
+    }
   }
 
-  // KG - Check all webform components
+  // Check all webform components
   foreach ($form['#node']->webform['components'] as $component) {
-    // KG - Check to see if we we have CiviCRM custom fields
+    // Check to see if we we have CiviCRM custom fields
     if (substr($component['form_key'], 0, 7) == 'civicrm' && preg_match('/_custom/', $component['form_key'], $matches)) {
-      // KG - Check to see if the CiviCRM custom field is configured to be Encrypted
+      // Check to see if the CiviCRM custom field is configured to be Encrypted
       if ($component['extra']['encrypt']) {
-        // KG - Find it and decrypt it before showing it on the form
+        // Find it and decrypt it before showing it on the form
 
         require_once 'CRM/Utils/Crypt.php';
 
+        // KG - ToDo: use Rob's haystack code snippet instead
         foreach($form['submitted'] as $key_sub => $sub) {
           if ($key_sub == $component['form_key']) {
-            // KG - only one level down
-            $form['submitted'][$component['form_key']]['#default_value'];
+            // One level down
             if (substr($form['submitted'][$component['form_key']]['#default_value'], 0, 7) == 'encrypt') {
               $field_value = CRM_Utils_Crypt::decrypt(substr($form['submitted'][$component['form_key']]['#default_value'], 8));
               $form['submitted'][$component['form_key']]['#default_value'] = $field_value;
@@ -164,8 +162,7 @@ function webform_deur_encrypt_form_alter( &$form, &$form_state, $form_id ){
           if (is_array($sub)) {
             foreach($sub as $key_subsub => $subsub) {
               if ($key_subsub == $component['form_key']) {
-                // KG - two levels down
-                $form['submitted'][$key_sub][$component['form_key']]['#default_value'];
+                // Two levels down
                 if (substr($form['submitted'][$key_sub][$component['form_key']]['#default_value'], 0, 7) == 'encrypt') {
                   $field_value = CRM_Utils_Crypt::decrypt(substr($form['submitted'][$key_sub][$component['form_key']]['#default_value'], 8));
                   $form['submitted'][$key_sub][$component['form_key']]['#default_value'] = $field_value;
@@ -205,5 +202,5 @@ function webform_deur_encrypt_extract($form_key) {
     return array();
   }
 
-  return array($table_name, $column_name, $fieldID);
+  return array($table_name, $column_name);
 }
