@@ -33,18 +33,15 @@ function webform_deur_encrypt_encryption($nid = NULL, $cid = NULL, $extra = arra
     return;
   }
 
-  require_once 'CRM/Utils/Crypt.php';
-
   $sql = "SELECT $column_name, entity_id FROM $table_name";
   $dao = CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
   while ( $dao->fetch( ) ) {
     $entityId = $dao->entity_id;
     $field = $dao->$column_name;
     if ($field != '') {
-      // Check if field is not already encrypted
-      if (substr($field, 0, 7) != 'encrypt') {
-        // KG - Todo: replace with drupal encrypt module
-        $field_value = 'encrypt-' . CRM_Utils_Crypt::encrypt($field);
+      // Use drupal encrypt module to encrypt
+      if (!is_array(@unserialize($field))) {
+        $field_value = encrypt($field, array('base64' => TRUE));
         $sql = "UPDATE $table_name SET $column_name = '$field_value' WHERE entity_id=$entityId";
         CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
       }
@@ -64,18 +61,15 @@ function webform_deur_encrypt_decryption($nid = NULL, $cid = NULL, $extra = arra
     return;
   }
 
-  require_once 'CRM/Utils/Crypt.php';
-
   $sql = "SELECT $column_name, entity_id FROM $table_name";
   $dao = CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
   while ( $dao->fetch( ) ) {
     $entityId = $dao->entity_id;
     $field = $dao->$column_name;
     if ($field != '') {
-      // Check if field is indeed encrypted
-      if (substr($field, 0, 7) == 'encrypt') {
-        // KG - Todo: replace with drupal encrypt module
-        $field_value = CRM_Utils_Crypt::decrypt(substr($field, 8));
+      // Use drupal encrypt module to decrypt
+      if (is_array(@unserialize($field))) {
+        $field_value = decrypt($field, array('base64' => TRUE));
         $sql = "UPDATE $table_name SET $column_name = '$field_value' WHERE entity_id=$entityId";
         CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
       }
@@ -103,19 +97,14 @@ function webform_deur_encrypt_civicrm_custom( $op, $groupID, $entityID, &$params
     if (substr($component['form_key'], 0, 7) == 'civicrm' && preg_match('/_custom/', $component['form_key'], $matches)) {
       // Check to see if the CiviCRM custom field is configured to be Encrypted
       if ($component['extra']['encrypt']) {
-
-        require_once 'CRM/Utils/Crypt.php';
-
         $field = $params[0]['value'];
         $entityId = $params[0]['entity_id'];
-        // KG - check if field is not already encrypted
-        if (substr($field, 0, 7) != 'encrypt') {
-          // KG - Todo: replace with drupal encrypt module
-          $field_value = 'encrypt-' . CRM_Utils_Crypt::encrypt($field);
+        // Use drupal encrypt module to encrypt
+        if (!is_array(@unserialize($field))) {
+          $field_value = encrypt($field, array('base64' => TRUE));
           $sql = "UPDATE $table_name SET $column_name = '$field_value' WHERE entity_id=$entityId";
           CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
         }
-
       }
     }
   }
@@ -134,10 +123,8 @@ function webform_deur_encrypt_form_alter( &$form, &$form_state, $form_id ){
   }
 
   // We only want decrypt CiviCRM custom values on initial webform form load
-  if (isset($form_state['input']['op'])) {
-    if ($form_state['input']['op'] == 'Submit') {
-      return;
-    }
+  if (isset($form_state['input']['op']) && $form_state['input']['op'] == 'Submit') {
+    return;
   }
 
   // Check all webform components
@@ -148,14 +135,13 @@ function webform_deur_encrypt_form_alter( &$form, &$form_state, $form_id ){
       if ($component['extra']['encrypt']) {
         // Find it and decrypt it before showing it on the form
 
-        require_once 'CRM/Utils/Crypt.php';
-
         // KG - ToDo: use Rob's haystack code snippet instead
         foreach($form['submitted'] as $key_sub => $sub) {
           if ($key_sub == $component['form_key']) {
             // One level down
-            if (substr($form['submitted'][$component['form_key']]['#default_value'], 0, 7) == 'encrypt') {
-              $field_value = CRM_Utils_Crypt::decrypt(substr($form['submitted'][$component['form_key']]['#default_value'], 8));
+            // Use drupal encrypt module to decrypt
+            if (is_array(@unserialize($form['submitted'][$component['form_key']]['#default_value']))) {
+              $field_value = decrypt($form['submitted'][$component['form_key']]['#default_value'], array('base64' => TRUE));
               $form['submitted'][$component['form_key']]['#default_value'] = $field_value;
             }
           }
@@ -163,8 +149,9 @@ function webform_deur_encrypt_form_alter( &$form, &$form_state, $form_id ){
             foreach($sub as $key_subsub => $subsub) {
               if ($key_subsub == $component['form_key']) {
                 // Two levels down
-                if (substr($form['submitted'][$key_sub][$component['form_key']]['#default_value'], 0, 7) == 'encrypt') {
-                  $field_value = CRM_Utils_Crypt::decrypt(substr($form['submitted'][$key_sub][$component['form_key']]['#default_value'], 8));
+                // Use drupal encrypt module to decrypt
+                if (is_array(@unserialize($form['submitted'][$component['form_key']]['#default_value']))) {
+                  $field_value = decrypt($form['submitted'][$key_sub][$component['form_key']]['#default_value'], array('base64' => TRUE));
                   $form['submitted'][$key_sub][$component['form_key']]['#default_value'] = $field_value;
                 }
               }
