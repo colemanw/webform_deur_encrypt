@@ -112,10 +112,8 @@ function webform_deur_encrypt_civicrm_custom( $op, $groupID, $entityID, &$params
 
 function webform_deur_encrypt_form_alter( &$form, &$form_state, $form_id ){
 
-  if (isset($form['#node'])) {
-    if ($form['#node']->type != 'webform') {
-      return;
-    }
+  if (substr($form_id, 0, 7) != 'webform') {
+    return;
   }
 
   if ($form_id == 'webform_component_edit_form' | $form_id == 'webform_components_form') {
