@@ -135,29 +135,29 @@ function webform_deur_encrypt_form_alter( &$form, &$form_state, $form_id ){
       if ($component['extra']['encrypt']) {
         // Find it and decrypt it before showing it on the form
 
-        // KG - ToDo: use Rob's haystack code snippet instead
-        foreach($form['submitted'] as $key_sub => $sub) {
-          if ($key_sub == $component['form_key']) {
-            // One level down
-            // Use drupal encrypt module to decrypt
-            if (is_array(@unserialize($form['submitted'][$component['form_key']]['#default_value']))) {
-              $field_value = decrypt($form['submitted'][$component['form_key']]['#default_value'], array('base64' => TRUE));
-              $form['submitted'][$component['form_key']]['#default_value'] = $field_value;
-            }
-          }
-          if (is_array($sub)) {
-            foreach($sub as $key_subsub => $subsub) {
-              if ($key_subsub == $component['form_key']) {
-                // Two levels down
-                // Use drupal encrypt module to decrypt
-                if (is_array(@unserialize($form['submitted'][$component['form_key']]['#default_value']))) {
-                  $field_value = decrypt($form['submitted'][$key_sub][$component['form_key']]['#default_value'], array('base64' => TRUE));
-                  $form['submitted'][$key_sub][$component['form_key']]['#default_value'] = $field_value;
-                }
-              }
-            }
+        // Rob's haystack code snippet
+        $haystack = $form['submitted'];
+        $path = keyfinder($haystack, $component['form_key']);
+        // Turn the path into a reference to the right key in the haystack.
+        if (!empty($path)) {
+          $cg_custom = &$haystack;
+          foreach ($path as $key) {
+            $cg_custom = &$cg_custom[$key];
           }
         }
+
+        // Use drupal encrypt module to decrypt
+        if (is_array(@unserialize($cg_custom['#default_value']))) {
+          $field_value = decrypt($cg_custom['#default_value'], array('base64' => TRUE));
+        }
+        if (count($path) == 1) {
+          $form['submitted'][$path[0]]['#default_value'] = $field_value;
+        } elseif (count($path) == 2) {
+          $form['submitted'][$path[0]][$path[1]]['#default_value'] = $field_value;
+        } elseif (count($path) == 3) {
+          $form['submitted'][$path[0]][$path[1]][$path[2]]['#default_value'] = $field_value;
+        }
+
       }
     }
   }
@@ -190,4 +190,30 @@ function webform_deur_encrypt_extract($form_key) {
   }
 
   return array($table_name, $column_name);
+}
+
+/**
+ * Find a key in an array tree.
+ * Returns array of parent keys + target key.
+ * E.g.: ['level_1', 'level_2', 'target_key']
+ */
+function keyfinder($a, $target_key, &$path = [], &$found = false) {
+  foreach ($a as $k => $v) {
+    if ($target_key === $k) {
+      $path[] = $k;
+      $found = true;
+      break;
+    }
+    elseif (is_array($v)) {
+      $path[] = $k;
+      keyfinder($v, $target_key, $path, $found);
+      if ($found) {
+        break;
+      }
+      else {
+        array_pop($path);
+      }
+    }
+  }
+  return $path;
 }
