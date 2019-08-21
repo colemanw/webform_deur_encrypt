@@ -61,8 +61,7 @@ function webform_deur_encrypt_decryption($nid = NULL, $cid = NULL, $extra = arra
   if (!empty($tablecolumn)) {
     $table_name = $tablecolumn[0];
     $column_name = $tablecolumn[1];
-  }
-  else {
+  } else {
     return;
   }
 
