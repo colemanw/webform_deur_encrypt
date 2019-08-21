@@ -3,6 +3,11 @@
  * Created using PhpStorm.
  * User: Semper IT / KarinG
  * Date: 19-08-11
+ *
+ * Configuration:
+ * CiviCRM Custom field:
+ * varchar(500)
+ * view Only
  */
 
 function webform_deur_encrypt_webform_component_presave($component) {
