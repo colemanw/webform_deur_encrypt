@@ -79,6 +79,7 @@ function webform_deur_encrypt_decryption($nid = NULL, $cid = NULL, $extra = arra
 
 function webform_deur_encrypt_civicrm_custom( $op, $groupID, $entityID, &$params ) {
 
+  // This hook is called immediately AFTER a CiviCRM custom field is saved in the CiviCRM database
   if ( $op != 'create' && $op != 'edit' && substr($_POST['form_id'], 0, 7) != 'webform') {
     return;
   }
@@ -111,6 +112,7 @@ function webform_deur_encrypt_civicrm_custom( $op, $groupID, $entityID, &$params
 }
 
 function webform_deur_encrypt_form_alter( &$form, &$form_state, $form_id ){
+  // This hook is to decrypt the value of the CiviCRM custom field on the webform
 
   if (substr($form_id, 0, 7) != 'webform') {
     return;
@@ -191,7 +193,7 @@ function webform_deur_encrypt_extract($form_key) {
 }
 
 /**
- * Find a key in an array tree.
+ * RE - Find a key in an array tree.
  * Returns array of parent keys + target key.
  * E.g.: ['level_1', 'level_2', 'target_key']
  */
