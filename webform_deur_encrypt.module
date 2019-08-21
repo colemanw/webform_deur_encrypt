@@ -141,7 +141,7 @@ function webform_deur_encrypt_form_alter( &$form, &$form_state, $form_id ){
         // Find it and decrypt it before showing it on the form
 
         // Rob's haystack code snippet
-        $haystack = $form['submitted'];
+        $haystack = &$form['submitted'];
         $path = keyfinder($haystack, $component['form_key']);
         // Turn the path into a reference to the right key in the haystack.
         if (!empty($path)) {
@@ -153,16 +153,8 @@ function webform_deur_encrypt_form_alter( &$form, &$form_state, $form_id ){
 
         // Use drupal encrypt module to decrypt
         if (is_array(@unserialize($cg_custom['#default_value']))) {
-          $field_value = decrypt($cg_custom['#default_value'], array('base64' => TRUE));
+          $cg_custom['#default_value'] = decrypt($cg_custom['#default_value'], array('base64' => TRUE));
         }
-        if (count($path) == 1) {
-          $form['submitted'][$path[0]]['#default_value'] = $field_value;
-        } elseif (count($path) == 2) {
-          $form['submitted'][$path[0]][$path[1]]['#default_value'] = $field_value;
-        } elseif (count($path) == 3) {
-          $form['submitted'][$path[0]][$path[1]][$path[2]]['#default_value'] = $field_value;
-        }
-
       }
     }
   }
